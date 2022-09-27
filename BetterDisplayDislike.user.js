@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Better Display Dislike
-// @version      1.0.0
+// @version      1.0.1
 // @description  Displays ratings on all videos no matter what
 // @author       Aubrey P.
 // @namespace    aubymori
@@ -89,7 +89,7 @@ async function getCounts() {
     var response = {};
 
     var likeCount = likeButton.accessibility.label.replace(getString("extractLikeCount", language), "");
-    if (!Number.isNaN(Number(likeCount))) response.likes = Number(likeCount);
+    if (0 !=  +likeCount) response.likes = +likeCount;
 
     var rydData = fetch("https://returnyoutubedislikeapi.com/votes?videoId=" + videoId);
     rydData = await (await rydData).json();
