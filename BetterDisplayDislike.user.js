@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Better Display Dislike
-// @version      1.0.1
+// @version      1.1.0
 // @description  Displays ratings on all videos no matter what
 // @author       Aubrey P.
 // @namespace    aubymori
@@ -20,14 +20,38 @@ const bddOptions = {};
  */
 const bddi18n = {
     en: {
-        la11ySingular: "1 like",
-        la11yPlural: "%s likes",
-        la11yLblSingular: "like this video along with 1 other person",
-        la11yLblPlural: "like this video along with %s other people",
-        da11ySingular: "1 dislike",
-        da11yPlural: "%s dislikes",
-        da11yLblSingular: "dislike this video along with 1 other person",
-        da11yLblPlural: "dislike this video along with %s other people",
+        likeA11ySingular: "1 like",
+        likeA11yPlural: "%s likes",
+        likeA11yLblSingular: "like this video along with 1 other person",
+        likeA11yLblPlural: "like this video along with %s other people",
+        dislikeA11ySingular: "1 dislike",
+        dislikeA11yPlural: "%s dislikes",
+        dislikeA11yLblSingular: "dislike this video along with 1 other person",
+        dislikeA11yLblPlural: "dislike this video along with %s other people",
+        sentimentTooltip: "%l / %d",
+        extractLikeCount: /( likes)|( like)|(,)/g
+    },
+    ja: {
+        likeA11ySingular: "高評価 1 件",
+        likeA11yPlural: "高評価 %s 件",
+        likeA11yLblSingular: "他 1 人もこの動画を高く評価しました",
+        likeA11yLblPlural: "他 %s 人もこの動画を高く評価しました",
+        dislikeA11ySingular: "低評価 1 件",
+        dislikeA11yPlural: "低評価 %s 件",
+        dislikeA11yLblSingular: "他 1 人もこの動画を低く評価しました",
+        dislikeA11yLblPlural: "他 %s 人もこの動画を低く評価しました",
+        sentimentTooltip: "%l / %d",
+        extractLikeCount: /(高評価)|(件)|(\s)|(,)/g
+    },
+    fil: {
+        likeA11ySingular: "1 like",
+        likeA11yPlural: "%s like",
+        likeA11yLblSingular: "ang may gusto ng video na ito kasama ang 1 pang tao",
+        likeA11yLblPlural: "ang may gusto ng video na ito kasama ang %s pang tao",
+        dislikeA11ySingular: "1 dislike",
+        dislikeA11yPlural: "%s dislike",
+        dislikeA11yLblSingular: "ang nag-dislike sa video na ito kasama ang 1 pang tao",
+        dislikeA11yLblPlural: "ang nag-dislike sa video na ito kasama ang %s pang tao",
         sentimentTooltip: "%l / %d",
         extractLikeCount: /( likes)|( like)|(,)/g
     }
@@ -45,7 +69,7 @@ function getString(string, hl = "en") {
     if (bddi18n[hl]) {
         if (bddi18n[hl][string]) {
             return bddi18n[hl][string];
-        } else if (bdd18n.en[string]) {
+        } else if (bddi18n.en[string]) {
             return bddi18n.en[string];
         } else {
             return "ERROR";
@@ -65,13 +89,14 @@ function getString(string, hl = "en") {
  * @returns {string}
  */
 function abbrNum(num, hl, gl) {
-    if (Number.isNaN(+num)) return "";
-    if (num < 1000) return ""+num;
-    var num = ""+num;
-    num = num.substr(0, 3) * 10 ** (num.length - 3);
-    return new Intl.NumberFormat(hl + "-" + gl, {
+    const locale = `${hl}-${gl}`;
+    // This is fucking HIDEOUS
+    // but there is literally no other way to do it and have it match YouTube
+    const conditional = ((num >= 1e3 && num < 1e5) || (num >= 1e6 && num < 1e8) || (num >= 1e9 && num < 1e11) || (num >= 1e12 && num < 1e14));
+
+    return new Intl.NumberFormat(locale, {
         notation: "compact",
-        maximumFractionDigits: 2
+        maximumFractionDigits: conditional ? 1 : 0
     }).format(num);
 }
 
@@ -85,7 +110,7 @@ async function getCounts() {
     const topLevelButtons = primaryInfo.data.videoActions.menuRenderer.topLevelButtons;
     const likeButton = topLevelButtons[0].toggleButtonRenderer;
     const videoId = new URLSearchParams(window.location.search).get("v");
-    const language = yt.config_.HL ?? "en";
+    const language = yt.config_.HL.split("-")[0] ?? "en";
     var response = {};
 
     var likeCount = likeButton.accessibility.label.replace(getString("extractLikeCount", language), "");
@@ -105,23 +130,23 @@ async function getCounts() {
 /**
  * Get label data for a vote count.
  * 
- * @param {number}  count  Vote count
- * @param {boolean} isDl   Is it dislikes?
- * @param {string}  hl     Language
- * @param {string}  gl     Country
+ * @param {number}  count       Vote count
+ * @param {boolean} isDislike   Is it dislikes?
+ * @param {string}  hl          Language
+ * @param {string}  gl          Country
  * @returns {object}
  */
-function getLabel(count, isDl, hl = "en", gl = "US") {
+function getLabel(count, isDislike, hl = "en", gl = "US") {
     var response = {};
-    var prefix = isDl ? "d" : "l";
+    var prefix = isDislike ? "dislike" : "like";
 
     response.simpleText = abbrNum(count, hl, gl);
 
     var a11y;
     if (count == 1) {
-        a11y = getString(prefix + "a11ySingular", hl);
+        a11y = getString(prefix + "A11ySingular", hl);
     } else {
-        a11y = getString(prefix + "a11yPlural", hl).replace("%s", count.toLocaleString(hl + "-" + gl));
+        a11y = getString(prefix + "A11yPlural", hl).replace("%s", count.toLocaleString(hl + "-" + gl));
     }
 
     response.accessibility = {
@@ -134,22 +159,22 @@ function getLabel(count, isDl, hl = "en", gl = "US") {
 /**
  * Get accessibility data for a vote count.
  * 
- * @param {number}  count  Vote count
- * @param {boolean} isDl   Is it dislikes?
- * @param {string}  hl     Language
- * @param {string}  gl     Country
+ * @param {number}  count       Vote count
+ * @param {boolean} isDislike   Is it dislikes?
+ * @param {string}  hl          Language
+ * @param {string}  gl          Country
  * @returns {object}
  */
-function getA11yData(count, isDl, hl = "en", gl = "US") {
+function getA11yData(count, isDislike, hl = "en", gl = "US") {
     var response = {
         accessibilityData: {}
     }
-    var prefix = isDl ? "d" : "l";
+    var prefix = isDislike ? "dislike" : "like";
 
     if (count == 1) {
-        response.accessibilityData.label = getString(prefix + "a11yLblSingular", hl);
+        response.accessibilityData.label = getString(prefix + "A11yLblSingular", hl);
     } else {
-        response.accessibilityData.label = getString(prefix + "a11yLblPlural", hl).replace("%s", count.toLocaleString(hl + "-" + gl));
+        response.accessibilityData.label = getString(prefix + "A11yLblPlural", hl).replace("%s", count.toLocaleString(hl + "-" + gl));
     }
 }
 
@@ -207,7 +232,7 @@ async function updateCounts() {
         }
     })();
     const counts = await getCounts();
-    const language = yt.config_.HL ?? "en";
+    const language = yt.config_.HL.split("-")[0] ?? "en";
     const country = yt.config_.GL ?? "US";
 
     console.log(counts);
